@@ -14,3 +14,6 @@
 -   `make` or `ninja` depending on what got generated
 -   `make clang-format-project-files` or `ninja clang-format-project-files` to
     run clang-format on all the files
+
+## Contributing
+Check out the [wiki](https://github.com/dipeshkaphle/ns-box/wiki)
