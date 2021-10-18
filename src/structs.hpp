@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <sys/mount.h>
 #include <vector>
@@ -12,8 +13,8 @@ using namespace std;
  */
 
 struct mount_arg {
-  std::string src;
-  std::string dest;
+  filesystem::path src;
+  filesystem::path dest;
   std::string fs_type;
   uint64_t mount_flags;
   const void *data;
@@ -27,11 +28,13 @@ enum switch_root_type { CHROOT, PIVOT_ROOT };
 
 struct arg {
   int fd[2];
-  const char *new_root;
+  filesystem::path new_root;
+  filesystem::path old_root;
   char **argv;
   vector<mount_arg> mounts;
   uint32_t clone_flags;
   switch_root_type sr_type;
-  bool read_only_root;
+  bool read_only_root = false;
+  bool keep_old_root = false;
   ~arg() { delete[] argv; }
 } __attribute__((aligned(128)));

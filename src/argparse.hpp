@@ -41,7 +41,7 @@ arg parse_args(int argc, char *argv[]) {
    */
 
   arg args = {
-      .new_root = nullptr,
+      .old_root = "/mnt",
       .argv = nullptr,
       .mounts = {},
       .clone_flags = default_clone_flags,
@@ -57,23 +57,30 @@ arg parse_args(int argc, char *argv[]) {
         {"read-only", no_argument, nullptr, 'r'},
         {"net", no_argument, nullptr, 'n'},
         {"ipc", no_argument, nullptr, 'i'},
+        {"keep-old-root", no_argument, nullptr, 'k'},
     };
     /*
      * man 3 getopt_long
      */
-    int c = getopt_long(argc, argv, "hv:rU:G:ni", long_options, &option_index);
+    int c = getopt_long(argc, argv, "khv:rni", long_options, &option_index);
     if (c == -1) {
       break;
     }
     switch (c) {
+    case 'k':
+      args.sr_type = switch_root_type::PIVOT_ROOT;
+      args.keep_old_root = true;
+      break;
     case 'h':
       cout << "Help!!!!\n";
       break;
     case 'v':
       handle_volume_mount_parsing(args);
+      args.sr_type = switch_root_type::PIVOT_ROOT;
       break;
     case 'r':
       args.read_only_root = true;
+      args.sr_type = switch_root_type::PIVOT_ROOT;
       break;
     case 'n':
       args.clone_flags |= CLONE_NEWNET;

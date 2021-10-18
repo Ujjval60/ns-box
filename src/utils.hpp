@@ -18,6 +18,10 @@ void fail(const char *msg) {
   perror(msg);
   exit(11);
 }
+void fail2(const char *msg) {
+  cerr << msg << endl;
+  exit(11);
+}
 
 void arg_err(const char *what) {
   cerr << what << ". See --help for more details\n";
