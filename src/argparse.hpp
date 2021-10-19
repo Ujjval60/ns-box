@@ -9,11 +9,13 @@
 #include "structs.hpp"
 #include "utils.hpp"
 
+namespace argparse {
+
 const uint32_t default_clone_flags = CLONE_NEWUSER | CLONE_NEWNS;
 
 void handle_volume_mount_parsing(arg &args) {
   string opt_arg(optarg);
-  auto src_dest_perm = split_string(opt_arg, ':');
+  auto src_dest_perm = util::split_string(opt_arg, ':');
   if (src_dest_perm.size() >= 2) {
     args.mounts.emplace_back(std::move(src_dest_perm[0]),
                              std::move(src_dest_perm[1]));
@@ -25,13 +27,14 @@ void handle_volume_mount_parsing(arg &args) {
          * No need to do anything,default is rw
          */
       } else {
-        arg_err("Invalid permission provided for --volume/-v, Permisson can "
-                "only be ro|rw");
+        util::arg_err(
+            "Invalid permission provided for --volume/-v, Permisson can "
+            "only be ro|rw");
       }
     }
   } else {
-    arg_err("Invalid parameters for -v or --volume. Expected format "
-            "<src>:<dest>(:<perm_string>)?");
+    util::arg_err("Invalid parameters for -v or --volume. Expected format "
+                  "<src>:<dest>(:<perm_string>)?");
   }
 }
 
@@ -58,11 +61,12 @@ arg parse_args(int argc, char *argv[]) {
         {"net", no_argument, nullptr, 'n'},
         {"ipc", no_argument, nullptr, 'i'},
         {"keep-old-root", no_argument, nullptr, 'k'},
+        {"old-root", required_argument, nullptr, 'o'},
     };
     /*
      * man 3 getopt_long
      */
-    int c = getopt_long(argc, argv, "khv:rni", long_options, &option_index);
+    int c = getopt_long(argc, argv, "khv:rnio:", long_options, &option_index);
     if (c == -1) {
       break;
     }
@@ -76,7 +80,7 @@ arg parse_args(int argc, char *argv[]) {
       break;
     case 'v':
       handle_volume_mount_parsing(args);
-      args.sr_type = switch_root_type::PIVOT_ROOT;
+      // args.sr_type = switch_root_type::PIVOT_ROOT;
       break;
     case 'r':
       args.read_only_root = true;
@@ -88,6 +92,8 @@ arg parse_args(int argc, char *argv[]) {
     case 'i':
       args.clone_flags |= CLONE_NEWIPC;
       break;
+    case 'o':
+      args.old_root = optarg;
     default:
       break;
     }
@@ -107,9 +113,10 @@ arg parse_args(int argc, char *argv[]) {
     args.argv[i] = NULL;
   } else {
     args.argv = new char *[2];
-    args.argv[0] = get_shell();
+    args.argv[0] = util::get_shell();
     args.argv[1] = NULL;
   }
 
   return args;
 }
+} // namespace argparse

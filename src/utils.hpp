@@ -4,6 +4,8 @@
 #include <iostream>
 #include <vector>
 
+namespace util {
+
 using namespace std;
 
 char *get_shell() {
@@ -40,3 +42,4 @@ vector<string> split_string(const std::string &str, char delim) {
     res.emplace_back(it, str.end());
   return res;
 }
+} // namespace util
