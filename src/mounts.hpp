@@ -17,30 +17,27 @@ static int pivot_root(const char *new_root, const char *put_old) {
   return syscall(SYS_pivot_root, new_root, put_old);
 }
 
-void remnt_dir_chroot(const mount_arg &m_arg) {
+void remnt_dir_to_dest_chroot(const mount_arg &m_arg,
+                              const filesystem::path &dest_prefix) {
   auto source = filesystem::path(string("/tmp/") + m_arg.dest.string())
                     .make_preferred()
                     .lexically_normal();
-  auto dest = filesystem::path(string("/") + m_arg.dest.string())
+  auto dest = filesystem::path(dest_prefix.string() + m_arg.dest.string())
                   .make_preferred()
                   .lexically_normal();
-  struct stat st = {0};
-  if (stat(dest.c_str(), &st) == -1) {
-    mkdir(dest.c_str(), 0777);
+  if (!filesystem::is_directory(dest)) {
+    filesystem::create_directories(dest);
   }
   int ret;
-  cout << source << " : " << dest << '\n';
+  cout << source << ":" << dest << '\n';
   // mount tmp directories mount to a directory on rootfs
   if ((ret = mount(source.c_str(), dest.c_str(), m_arg.fs_type.c_str(),
                    m_arg.mount_flags, m_arg.data)) != 0) {
     util::fail("mount()");
   }
 
-  if (umount(source.c_str()) != 0) {
-    util::fail("umount(/tmp/<dest>) ");
-  }
-  if (rmdir(source.c_str()) != 0) {
-    util::fail("unlink(/tmp/<dest>)");
+  if (umount2(source.c_str(), MNT_DETACH) != 0) {
+    util::fail("umount2(/tmp/<dest>,MNT_DETACH) ");
   }
 
   if (m_arg.mount_flags & MS_RDONLY) {
@@ -51,21 +48,21 @@ void remnt_dir_chroot(const mount_arg &m_arg) {
   }
 }
 
-void mnt_dir_chroot(const mount_arg &m_arg,
-                    const filesystem::path &source_prefix,
-                    const filesystem::path &dest_prefix) {
-  auto source = filesystem::path(source_prefix.string() + m_arg.src.string())
+void mnt_dir_to_tmp_chroot(const mount_arg &m_arg,
+                           const filesystem::path &dest_prefix) {
+  auto source = filesystem::path("/" + m_arg.src.string())
                     .make_preferred()
                     .lexically_normal();
-  auto dest = filesystem::path(dest_prefix.string() + m_arg.dest.string())
+  auto dest = filesystem::path(dest_prefix.string() + string("/tmp/") +
+                               m_arg.dest.string())
                   .make_preferred()
                   .lexically_normal();
-  struct stat st = {0};
-  if (stat(dest.c_str(), &st) == -1) {
-    mkdir(dest.c_str(), 0777);
+
+  if (!filesystem::is_directory(dest)) {
+    filesystem::create_directories(dest);
   }
   int ret;
-  cout << source << " : " << dest << '\n';
+  cout << "tmp>>" << source << ":" << dest << '\n';
 
   if ((ret = mount(source.c_str(), dest.c_str(), m_arg.fs_type.c_str(),
                    m_arg.mount_flags, m_arg.data)) != 0) {
@@ -74,23 +71,47 @@ void mnt_dir_chroot(const mount_arg &m_arg,
   //
 }
 
+void mnt_dir_to_dest_pivot_root(const mount_arg &m_arg,
+                                const filesystem::path &source_prefix,
+                                const filesystem::path &dest_prefix) {
+  auto source = filesystem::path(source_prefix.string() + m_arg.src.string())
+                    .make_preferred()
+                    .lexically_normal();
+  auto dest = filesystem::path(dest_prefix.string() + m_arg.dest.string())
+                  .make_preferred()
+                  .lexically_normal();
+  if (!filesystem::is_directory(dest)) {
+    filesystem::create_directories(dest);
+  }
+  if (mount(source.c_str(), dest.c_str(), m_arg.fs_type.c_str(),
+            m_arg.mount_flags, m_arg.data) != 0) {
+    util::fail("mount()");
+  }
+
+  if (m_arg.mount_flags & MS_RDONLY) {
+    if (mount("", dest.c_str(), NULL, MS_REMOUNT | MS_RDONLY | MS_BIND, NULL) !=
+        0) {
+      util::fail("RDONLY mount()");
+    }
+  }
+}
+
 void handle_chroot_mount(filesystem::path &new_root_abs, arg *args) {
 
   for_each(args->mounts.cbegin(), args->mounts.cend(),
            [&](const mount_arg &m_arg) {
-             mnt_dir_chroot(m_arg, args->new_root, "/tmp");
+             mnt_dir_to_tmp_chroot(m_arg, new_root_abs);
            });
+  if (chdir(new_root_abs.c_str()) != 0) {
+    util::fail("chdir(new_root)");
+  }
 
-  if (chroot(new_root_abs.c_str()) != 0) {
+  if (chroot(".") != 0) {
     util::fail("chroot");
   }
-  if (chdir("/") != 0) {
-    util::fail("chdir");
-  }
-  for_each(args->mounts.cbegin(), args->mounts.cend(),
-           [&](const mount_arg &m_arg) { remnt_dir_chroot(m_arg); });
-
-  //
+  for_each(
+      args->mounts.cbegin(), args->mounts.cend(),
+      [&](const mount_arg &m_arg) { remnt_dir_to_dest_chroot(m_arg, "/"); });
 }
 
 void handle_pivot_root_mount(filesystem::path &new_root_abs, arg *args) {
@@ -183,6 +204,12 @@ void handle_pivot_root_mount(filesystem::path &new_root_abs, arg *args) {
   if (chdir("/") != 0) {
     util::fail("chdir after pivot_root()");
   }
+
+  for_each(args->mounts.cbegin(), args->mounts.cend(),
+           [&](const mount_arg &m_arg) {
+             mnt_dir_to_dest_pivot_root(m_arg, args->old_root, "/");
+           });
+
   /*
    * We have changed our root to point to new_root_abs now.
    * Everything we do now should be relative to that now.

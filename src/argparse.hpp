@@ -80,7 +80,6 @@ arg parse_args(int argc, char *argv[]) {
       break;
     case 'v':
       handle_volume_mount_parsing(args);
-      // args.sr_type = switch_root_type::PIVOT_ROOT;
       break;
     case 'r':
       args.read_only_root = true;
